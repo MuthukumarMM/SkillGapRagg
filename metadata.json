@@ -1,0 +1,6 @@
+{
+  "name": "SkillGapRAG",
+  "description": "SkillGapRAG: An AI-Powered Career Intelligence and Skill Gap Analysis System Using Retrieval-Augmented Generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

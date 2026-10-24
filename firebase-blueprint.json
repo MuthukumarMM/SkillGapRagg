@@ -1,0 +1,394 @@
+{
+  "entities": {
+    "AdminMarker": {
+      "title": "AdminMarker",
+      "description": "Trusted administrator membership marker document.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "grantedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "grantedBy", "createdAt"]
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Authenticated student or administrator profile record (no PII stored directly).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "institution": { "type": "string", "maxLength": 160 },
+        "degreeProgram": { "type": "string", "maxLength": 160 },
+        "graduationYear": { "type": "number" },
+        "weeklyStudyHours": { "type": "number" },
+        "preferredDurationWeeks": { "type": "number" },
+        "selectedRoleId": { "type": "string", "maxLength": 128 },
+        "onboardingCompleted": { "type": "boolean" },
+        "confirmedSkills": { "type": "array", "description": "Bounded confirmed student skills (max 40)." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "institution",
+        "degreeProgram",
+        "graduationYear",
+        "weeklyStudyHours",
+        "preferredDurationWeeks",
+        "selectedRoleId",
+        "onboardingCompleted",
+        "confirmedSkills",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "JobRole": {
+      "title": "JobRole",
+      "description": "Curated or administrator-managed target career role.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 10, "maxLength": 3000 },
+        "department": { "type": "string", "maxLength": 120 },
+        "isSampleDataset": { "type": "boolean" },
+        "active": { "type": "boolean" },
+        "recommendedResourceIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "department",
+        "isSampleDataset",
+        "active",
+        "recommendedResourceIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SkillDefinition": {
+      "title": "SkillDefinition",
+      "description": "Canonical technical skill definition in the SkillGapRAG catalog.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "category", "description", "active", "createdAt", "updatedAt"]
+    },
+    "RoleRequirement": {
+      "title": "RoleRequirement",
+      "description": "Maps a JobRole to a required SkillDefinition with target proficiency (1-4) and importance weight.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "roleId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "skillId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "skillName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "requiredProficiency": { "type": "number" },
+        "importanceWeight": { "type": "number" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "roleId",
+        "skillId",
+        "skillName",
+        "category",
+        "requiredProficiency",
+        "importanceWeight",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ResumeRecord": {
+      "title": "ResumeRecord",
+      "description": "Private student resume record containing extracted text, projects, certificates, and experience.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fileName": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "mimeType": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "fileSizeBytes": { "type": "number" },
+        "storagePath": { "type": "string", "maxLength": 512 },
+        "extractedText": { "type": "string", "maxLength": 20000 },
+        "extractedSkills": { "type": "array" },
+        "projects": { "type": "array" },
+        "certificates": { "type": "array" },
+        "experienceSummary": { "type": "string", "maxLength": 3000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "fileName",
+        "mimeType",
+        "fileSizeBytes",
+        "storagePath",
+        "extractedText",
+        "extractedSkills",
+        "projects",
+        "certificates",
+        "experienceSummary",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AssessmentAttempt": {
+      "title": "AssessmentAttempt",
+      "description": "Skill-specific multiple-choice practical assessment completed by a student.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "skillId": { "type": "string", "maxLength": 128 },
+        "skillName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "difficulty": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced"] },
+        "totalQuestions": { "type": "number" },
+        "correctAnswers": { "type": "number" },
+        "scorePercent": { "type": "number" },
+        "verifiedProficiency": { "type": "number" },
+        "questionReviews": { "type": "array" },
+        "completedAtIso": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "skillId",
+        "skillName",
+        "difficulty",
+        "totalQuestions",
+        "correctAnswers",
+        "scorePercent",
+        "verifiedProficiency",
+        "questionReviews",
+        "completedAtIso",
+        "createdAt"
+      ]
+    },
+    "LearningResource": {
+      "title": "LearningResource",
+      "description": "Curated learning resource in the RAG knowledge base.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 240 },
+        "description": { "type": "string", "minLength": 5, "maxLength": 2000 },
+        "skillCategory": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "skillTags": { "type": "array" },
+        "difficulty": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced"] },
+        "url": { "type": "string", "minLength": 4, "maxLength": 512 },
+        "source": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "estimatedHours": { "type": "number" },
+        "searchableContent": { "type": "string", "minLength": 10, "maxLength": 12000 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "skillCategory",
+        "skillTags",
+        "difficulty",
+        "url",
+        "source",
+        "estimatedHours",
+        "searchableContent",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ResourceChunk": {
+      "title": "ResourceChunk",
+      "description": "Processed document chunk from a LearningResource retaining source metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "resourceId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "resourceTitle": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "skillCategory": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "difficulty": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced"] },
+        "source": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "url": { "type": "string", "minLength": 4, "maxLength": 512 },
+        "chunkIndex": { "type": "number" },
+        "chunkText": { "type": "string", "minLength": 5, "maxLength": 3000 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "resourceId",
+        "resourceTitle",
+        "skillCategory",
+        "difficulty",
+        "source",
+        "url",
+        "chunkIndex",
+        "chunkText",
+        "active",
+        "createdAt"
+      ]
+    },
+    "LearningRoadmapDoc": {
+      "title": "LearningRoadmapDoc",
+      "description": "Personalised RAG-grounded learning roadmap saved for a student.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "roleId": { "type": "string", "maxLength": 128 },
+        "roleTitle": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "weeklyStudyHours": { "type": "number" },
+        "preferredDurationWeeks": { "type": "number" },
+        "summary": { "type": "string", "maxLength": 3000 },
+        "insufficientEvidenceNote": { "type": "string", "maxLength": 1000 },
+        "tasks": { "type": "array" },
+        "sourceAttributions": { "type": "array" },
+        "generatedAtIso": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "roleId",
+        "roleTitle",
+        "weeklyStudyHours",
+        "preferredDurationWeeks",
+        "summary",
+        "insufficientEvidenceNote",
+        "tasks",
+        "sourceAttributions",
+        "generatedAtIso",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ProgressSnapshot": {
+      "title": "ProgressSnapshot",
+      "description": "Skill gap evaluation snapshot for continuous progress tracking and aggregate admin analytics.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "roleId": { "type": "string", "maxLength": 128 },
+        "roleTitle": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "skillMatchScore": { "type": "number" },
+        "earnedWeightedPoints": { "type": "number" },
+        "totalWeightedPoints": { "type": "number" },
+        "meetsCount": { "type": "number" },
+        "needsImprovementCount": { "type": "number" },
+        "missingCount": { "type": "number" },
+        "requiresAssessmentCount": { "type": "number" },
+        "missingSkillNames": { "type": "array" },
+        "skillBreakdown": { "type": "array" },
+        "triggerReason": { "type": "string", "maxLength": 120 },
+        "recordedAtIso": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "roleId",
+        "roleTitle",
+        "skillMatchScore",
+        "earnedWeightedPoints",
+        "totalWeightedPoints",
+        "meetsCount",
+        "needsImprovementCount",
+        "missingCount",
+        "requiresAssessmentCount",
+        "missingSkillNames",
+        "skillBreakdown",
+        "triggerReason",
+        "recordedAtIso",
+        "createdAt"
+      ]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Non-sensitive system activity event log for administrator reporting.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorDisplayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "actorRole": { "type": "string", "enum": ["student", "admin"] },
+        "actionType": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "occurredAtIso": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "actorUid",
+        "actorDisplayName",
+        "actorRole",
+        "actionType",
+        "summary",
+        "occurredAtIso",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminMarker" },
+      "description": "Trusted administrator UID registry."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Student and administrator non-PII user profiles."
+    },
+    "/jobRoles/{roleId}": {
+      "schema": { "$ref": "#/entities/JobRole" },
+      "description": "Target career roles managed by administrators."
+    },
+    "/skills/{skillId}": {
+      "schema": { "$ref": "#/entities/SkillDefinition" },
+      "description": "Canonical technical skill catalog."
+    },
+    "/roleRequirements/{reqId}": {
+      "schema": { "$ref": "#/entities/RoleRequirement" },
+      "description": "Target proficiency and weight requirements per job role."
+    },
+    "/resumes/{resumeId}": {
+      "schema": { "$ref": "#/entities/ResumeRecord" },
+      "description": "Private student resume records (strictly owner-only, never exposed to admins)."
+    },
+    "/assessments/{assessmentId}": {
+      "schema": { "$ref": "#/entities/AssessmentAttempt" },
+      "description": "Private student practical assessment attempts (strictly owner-only)."
+    },
+    "/learningResources/{resourceId}": {
+      "schema": { "$ref": "#/entities/LearningResource" },
+      "description": "Curated learning resources for RAG retrieval."
+    },
+    "/resourceChunks/{chunkId}": {
+      "schema": { "$ref": "#/entities/ResourceChunk" },
+      "description": "Chunked resource segments with source metadata."
+    },
+    "/roadmaps/{roadmapId}": {
+      "schema": { "$ref": "#/entities/LearningRoadmapDoc" },
+      "description": "Personalised student learning roadmaps."
+    },
+    "/progress/{progressId}": {
+      "schema": { "$ref": "#/entities/ProgressSnapshot" },
+      "description": "Skill match score snapshots for historical reassessment and aggregate admin stats."
+    },
+    "/activityLogs/{logId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Non-sensitive system activity logs visible to administrators."
+    }
+  }
+}

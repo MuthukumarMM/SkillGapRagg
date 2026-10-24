@@ -1,0 +1,843 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser()
+        && request.auth.token.email is string
+        && request.auth.token.email.size() <= 160
+        && request.auth.token.email == 'muthum.ug.24.cs@francisxavier.ac.in';
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        isBootstrappedAdmin() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function hasUserRecord(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    // Validation Helpers
+    function isValidAdminMarker(data, adminUid) {
+      return data.keys().hasAll(['uid', 'grantedBy', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'grantedBy', 'createdAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.uid == adminUid
+        && data.grantedBy is string && data.grantedBy.size() >= 1 && data.grantedBy.size() <= 128
+        && data.createdAt is timestamp;
+    }
+
+    function isValidUserAccount(data, userId) {
+      return data.keys().hasAll([
+          'uid',
+          'displayName',
+          'institution',
+          'degreeProgram',
+          'graduationYear',
+          'weeklyStudyHours',
+          'preferredDurationWeeks',
+          'selectedRoleId',
+          'onboardingCompleted',
+          'confirmedSkills',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'institution',
+          'degreeProgram',
+          'graduationYear',
+          'weeklyStudyHours',
+          'preferredDurationWeeks',
+          'selectedRoleId',
+          'onboardingCompleted',
+          'confirmedSkills',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.uid == userId
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.institution is string && data.institution.size() <= 160
+        && data.degreeProgram is string && data.degreeProgram.size() <= 160
+        && data.graduationYear is number && data.graduationYear >= 2000 && data.graduationYear <= 2040
+        && data.weeklyStudyHours is number && data.weeklyStudyHours >= 1 && data.weeklyStudyHours <= 80
+        && data.preferredDurationWeeks is number && data.preferredDurationWeeks >= 1 && data.preferredDurationWeeks <= 52
+        && data.selectedRoleId is string && data.selectedRoleId.size() <= 128
+        && data.onboardingCompleted is bool
+        && data.confirmedSkills is list && data.confirmedSkills.size() <= 40
+        && (data.confirmedSkills.size() == 0 || data.confirmedSkills[0] is map)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidJobRole(data, roleId) {
+      return data.keys().hasAll([
+          'id',
+          'title',
+          'description',
+          'department',
+          'isSampleDataset',
+          'active',
+          'recommendedResourceIds',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'title',
+          'description',
+          'department',
+          'isSampleDataset',
+          'active',
+          'recommendedResourceIds',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.id == roleId
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 160
+        && data.description is string && data.description.size() >= 10 && data.description.size() <= 3000
+        && data.department is string && data.department.size() <= 120
+        && data.isSampleDataset is bool
+        && data.active is bool
+        && data.recommendedResourceIds is list && data.recommendedResourceIds.size() <= 30
+        && (data.recommendedResourceIds.size() == 0 || (data.recommendedResourceIds[0] is string && data.recommendedResourceIds[0].size() <= 128))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSkillDef(data, skillId) {
+      return data.keys().hasAll(['id', 'name', 'category', 'description', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'name', 'category', 'description', 'active', 'createdAt', 'updatedAt'])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.id == skillId
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 100
+        && data.description is string && data.description.size() <= 1000
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoleReq(data, reqId) {
+      return data.keys().hasAll([
+          'id',
+          'roleId',
+          'skillId',
+          'skillName',
+          'category',
+          'requiredProficiency',
+          'importanceWeight',
+          'active',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'roleId',
+          'skillId',
+          'skillName',
+          'category',
+          'requiredProficiency',
+          'importanceWeight',
+          'active',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.id == reqId
+        && data.roleId is string && data.roleId.size() >= 1 && data.roleId.size() <= 128 && data.roleId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.skillId is string && data.skillId.size() >= 1 && data.skillId.size() <= 128 && data.skillId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.skillName is string && data.skillName.size() >= 1 && data.skillName.size() <= 120
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 100
+        && data.requiredProficiency is number && data.requiredProficiency >= 1 && data.requiredProficiency <= 4
+        && data.importanceWeight is number && data.importanceWeight >= 1 && data.importanceWeight <= 5
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidResumeRecord(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'fileName',
+          'mimeType',
+          'fileSizeBytes',
+          'storagePath',
+          'extractedText',
+          'extractedSkills',
+          'projects',
+          'certificates',
+          'experienceSummary',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'fileName',
+          'mimeType',
+          'fileSizeBytes',
+          'storagePath',
+          'extractedText',
+          'extractedSkills',
+          'projects',
+          'certificates',
+          'experienceSummary',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.ownerId == request.auth.uid
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 240
+        && data.mimeType is string && data.mimeType.size() >= 1 && data.mimeType.size() <= 100
+        && data.fileSizeBytes is number && data.fileSizeBytes >= 0 && data.fileSizeBytes <= 10485760
+        && data.storagePath is string && data.storagePath.size() <= 512
+        && data.extractedText is string && data.extractedText.size() <= 20000
+        && data.extractedSkills is list && data.extractedSkills.size() <= 40
+        && (data.extractedSkills.size() == 0 || data.extractedSkills[0] is map)
+        && data.projects is list && data.projects.size() <= 20
+        && (data.projects.size() == 0 || (data.projects[0] is string && data.projects[0].size() <= 500))
+        && data.certificates is list && data.certificates.size() <= 20
+        && (data.certificates.size() == 0 || (data.certificates[0] is string && data.certificates[0].size() <= 300))
+        && data.experienceSummary is string && data.experienceSummary.size() <= 3000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAssessmentAttempt(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'skillId',
+          'skillName',
+          'difficulty',
+          'totalQuestions',
+          'correctAnswers',
+          'scorePercent',
+          'verifiedProficiency',
+          'questionReviews',
+          'completedAtIso',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'skillId',
+          'skillName',
+          'difficulty',
+          'totalQuestions',
+          'correctAnswers',
+          'scorePercent',
+          'verifiedProficiency',
+          'questionReviews',
+          'completedAtIso',
+          'createdAt'
+        ])
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.ownerId == request.auth.uid
+        && data.skillId is string && data.skillId.size() >= 1 && data.skillId.size() <= 128
+        && data.skillName is string && data.skillName.size() >= 1 && data.skillName.size() <= 120
+        && data.difficulty is string && data.difficulty.size() <= 30
+        && data.difficulty in ['Beginner', 'Intermediate', 'Advanced']
+        && data.totalQuestions is number && data.totalQuestions >= 1 && data.totalQuestions <= 25
+        && data.correctAnswers is number && data.correctAnswers >= 0 && data.correctAnswers <= 25
+        && data.scorePercent is number && data.scorePercent >= 0 && data.scorePercent <= 100
+        && data.verifiedProficiency is number && data.verifiedProficiency >= 0 && data.verifiedProficiency <= 4
+        && data.questionReviews is list && data.questionReviews.size() <= 25
+        && (data.questionReviews.size() == 0 || data.questionReviews[0] is map)
+        && data.completedAtIso is string && data.completedAtIso.size() >= 1 && data.completedAtIso.size() <= 64
+        && data.createdAt is timestamp;
+    }
+
+    function isValidLearningResource(data, resourceId) {
+      return data.keys().hasAll([
+          'id',
+          'title',
+          'description',
+          'skillCategory',
+          'skillTags',
+          'difficulty',
+          'url',
+          'source',
+          'estimatedHours',
+          'searchableContent',
+          'active',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'title',
+          'description',
+          'skillCategory',
+          'skillTags',
+          'difficulty',
+          'url',
+          'source',
+          'estimatedHours',
+          'searchableContent',
+          'active',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.id == resourceId
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 240
+        && data.description is string && data.description.size() >= 5 && data.description.size() <= 2000
+        && data.skillCategory is string && data.skillCategory.size() >= 1 && data.skillCategory.size() <= 120
+        && data.skillTags is list && data.skillTags.size() <= 20
+        && (data.skillTags.size() == 0 || (data.skillTags[0] is string && data.skillTags[0].size() <= 80))
+        && data.difficulty is string && data.difficulty.size() <= 30
+        && data.difficulty in ['Beginner', 'Intermediate', 'Advanced']
+        && data.url is string && data.url.size() >= 4 && data.url.size() <= 512
+        && data.source is string && data.source.size() >= 1 && data.source.size() <= 160
+        && data.estimatedHours is number && data.estimatedHours >= 1 && data.estimatedHours <= 500
+        && data.searchableContent is string && data.searchableContent.size() >= 10 && data.searchableContent.size() <= 12000
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidResourceChunk(data, chunkId) {
+      return data.keys().hasAll([
+          'id',
+          'resourceId',
+          'resourceTitle',
+          'skillCategory',
+          'difficulty',
+          'source',
+          'url',
+          'chunkIndex',
+          'chunkText',
+          'active',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'resourceId',
+          'resourceTitle',
+          'skillCategory',
+          'difficulty',
+          'source',
+          'url',
+          'chunkIndex',
+          'chunkText',
+          'active',
+          'createdAt'
+        ])
+        && data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.id == chunkId
+        && data.resourceId is string && data.resourceId.size() >= 1 && data.resourceId.size() <= 128 && data.resourceId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.resourceTitle is string && data.resourceTitle.size() >= 1 && data.resourceTitle.size() <= 240
+        && data.skillCategory is string && data.skillCategory.size() >= 1 && data.skillCategory.size() <= 120
+        && data.difficulty is string && data.difficulty.size() <= 30
+        && data.difficulty in ['Beginner', 'Intermediate', 'Advanced']
+        && data.source is string && data.source.size() >= 1 && data.source.size() <= 160
+        && data.url is string && data.url.size() >= 4 && data.url.size() <= 512
+        && data.chunkIndex is number && data.chunkIndex >= 0 && data.chunkIndex <= 200
+        && data.chunkText is string && data.chunkText.size() >= 5 && data.chunkText.size() <= 3000
+        && data.active is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidRoadmapDoc(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'roleId',
+          'roleTitle',
+          'weeklyStudyHours',
+          'preferredDurationWeeks',
+          'summary',
+          'insufficientEvidenceNote',
+          'tasks',
+          'sourceAttributions',
+          'generatedAtIso',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'roleId',
+          'roleTitle',
+          'weeklyStudyHours',
+          'preferredDurationWeeks',
+          'summary',
+          'insufficientEvidenceNote',
+          'tasks',
+          'sourceAttributions',
+          'generatedAtIso',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.ownerId == request.auth.uid
+        && data.roleId is string && data.roleId.size() >= 1 && data.roleId.size() <= 128
+        && data.roleTitle is string && data.roleTitle.size() >= 1 && data.roleTitle.size() <= 160
+        && data.weeklyStudyHours is number && data.weeklyStudyHours >= 1 && data.weeklyStudyHours <= 80
+        && data.preferredDurationWeeks is number && data.preferredDurationWeeks >= 1 && data.preferredDurationWeeks <= 52
+        && data.summary is string && data.summary.size() <= 3000
+        && data.insufficientEvidenceNote is string && data.insufficientEvidenceNote.size() <= 1000
+        && data.tasks is list && data.tasks.size() <= 30
+        && (data.tasks.size() == 0 || data.tasks[0] is map)
+        && data.sourceAttributions is list && data.sourceAttributions.size() <= 25
+        && (data.sourceAttributions.size() == 0 || data.sourceAttributions[0] is map)
+        && data.generatedAtIso is string && data.generatedAtIso.size() >= 1 && data.generatedAtIso.size() <= 64
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProgressSnapshot(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'roleId',
+          'roleTitle',
+          'skillMatchScore',
+          'earnedWeightedPoints',
+          'totalWeightedPoints',
+          'meetsCount',
+          'needsImprovementCount',
+          'missingCount',
+          'requiresAssessmentCount',
+          'missingSkillNames',
+          'skillBreakdown',
+          'triggerReason',
+          'recordedAtIso',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'roleId',
+          'roleTitle',
+          'skillMatchScore',
+          'earnedWeightedPoints',
+          'totalWeightedPoints',
+          'meetsCount',
+          'needsImprovementCount',
+          'missingCount',
+          'requiresAssessmentCount',
+          'missingSkillNames',
+          'skillBreakdown',
+          'triggerReason',
+          'recordedAtIso',
+          'createdAt'
+        ])
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.ownerId == request.auth.uid
+        && data.roleId is string && data.roleId.size() >= 1 && data.roleId.size() <= 128
+        && data.roleTitle is string && data.roleTitle.size() >= 1 && data.roleTitle.size() <= 160
+        && data.skillMatchScore is number && data.skillMatchScore >= 0 && data.skillMatchScore <= 100
+        && data.earnedWeightedPoints is number && data.earnedWeightedPoints >= 0 && data.earnedWeightedPoints <= 1000
+        && data.totalWeightedPoints is number && data.totalWeightedPoints >= 0 && data.totalWeightedPoints <= 1000
+        && data.meetsCount is number && data.meetsCount >= 0 && data.meetsCount <= 50
+        && data.needsImprovementCount is number && data.needsImprovementCount >= 0 && data.needsImprovementCount <= 50
+        && data.missingCount is number && data.missingCount >= 0 && data.missingCount <= 50
+        && data.requiresAssessmentCount is number && data.requiresAssessmentCount >= 0 && data.requiresAssessmentCount <= 50
+        && data.missingSkillNames is list && data.missingSkillNames.size() <= 30
+        && (data.missingSkillNames.size() == 0 || (data.missingSkillNames[0] is string && data.missingSkillNames[0].size() <= 120))
+        && data.skillBreakdown is list && data.skillBreakdown.size() <= 30
+        && (data.skillBreakdown.size() == 0 || data.skillBreakdown[0] is map)
+        && data.triggerReason is string && data.triggerReason.size() >= 1 && data.triggerReason.size() <= 120
+        && data.recordedAtIso is string && data.recordedAtIso.size() >= 1 && data.recordedAtIso.size() <= 64
+        && data.createdAt is timestamp;
+    }
+
+    function isValidActivityLog(data) {
+      return data.keys().hasAll([
+          'actorUid',
+          'actorDisplayName',
+          'actorRole',
+          'actionType',
+          'summary',
+          'occurredAtIso',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'actorUid',
+          'actorDisplayName',
+          'actorRole',
+          'actionType',
+          'summary',
+          'occurredAtIso',
+          'createdAt'
+        ])
+        && data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128 && data.actorUid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.actorUid == request.auth.uid
+        && data.actorDisplayName is string && data.actorDisplayName.size() >= 1 && data.actorDisplayName.size() <= 120
+        && data.actorRole is string && data.actorRole.size() <= 20
+        && data.actorRole in ['student', 'admin']
+        && data.actionType is string && data.actionType.size() >= 1 && data.actionType.size() <= 80
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 400
+        && data.occurredAtIso is string && data.occurredAtIso.size() >= 1 && data.occurredAtIso.size() <= 64
+        && data.createdAt is timestamp;
+    }
+
+    // Collection 0: Trusted Admin Registry (/admins/{adminUid})
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && (request.auth.uid == adminUid || isAdmin());
+      allow list: if isVerifiedUser() && (existing().uid == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser()
+        && isValidId(adminUid)
+        && isValidAdminMarker(incoming(), adminUid)
+        && incoming().createdAt == request.time
+        && isAdmin();
+      allow update: if false;
+      allow delete: if isVerifiedUser() && isValidId(adminUid) && isAdmin();
+    }
+
+    // Collection 1: Users (/users/{userId}) - Non-PII student & admin accounts
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isVerifiedUser() && (existing().uid == request.auth.uid || isAdmin());
+
+      allow create: if isVerifiedUser()
+        && request.auth.uid == userId
+        && isValidId(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName',
+            'institution',
+            'degreeProgram',
+            'graduationYear',
+            'weeklyStudyHours',
+            'preferredDurationWeeks',
+            'selectedRoleId',
+            'onboardingCompleted',
+            'confirmedSkills',
+            'updatedAt'
+          ])) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly([
+            'institution',
+            'degreeProgram',
+            'graduationYear',
+            'onboardingCompleted',
+            'updatedAt'
+          ]) && isAdmin())
+        );
+
+      allow delete: if false;
+    }
+
+    // Collection 2: Job Roles (/jobRoles/{roleId})
+    match /jobRoles/{roleId} {
+      allow get: if isSignedIn() && isValidId(roleId) && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(roleId)
+        && isValidJobRole(incoming(), roleId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+
+      allow update: if isVerifiedUser()
+        && isValidId(roleId)
+        && isValidJobRole(incoming(), roleId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title',
+          'description',
+          'department',
+          'isSampleDataset',
+          'active',
+          'recommendedResourceIds',
+          'updatedAt'
+        ])
+        && isAdmin();
+
+      allow delete: if isVerifiedUser() && isValidId(roleId) && isAdmin();
+    }
+
+    // Collection 3: Skills (/skills/{skillId})
+    match /skills/{skillId} {
+      allow get: if isSignedIn() && isValidId(skillId) && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(skillId)
+        && isValidSkillDef(incoming(), skillId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+
+      allow update: if isVerifiedUser()
+        && isValidId(skillId)
+        && isValidSkillDef(incoming(), skillId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name',
+          'category',
+          'description',
+          'active',
+          'updatedAt'
+        ])
+        && isAdmin();
+
+      allow delete: if isVerifiedUser() && isValidId(skillId) && isAdmin();
+    }
+
+    // Collection 4: Role Requirements (/roleRequirements/{reqId})
+    match /roleRequirements/{reqId} {
+      allow get: if isSignedIn() && isValidId(reqId) && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(reqId)
+        && isValidRoleReq(incoming(), reqId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin()
+        && exists(/databases/$(database)/documents/jobRoles/$(incoming().roleId));
+
+      allow update: if isVerifiedUser()
+        && isValidId(reqId)
+        && isValidRoleReq(incoming(), reqId)
+        && incoming().id == existing().id
+        && incoming().roleId == existing().roleId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'skillId',
+          'skillName',
+          'category',
+          'requiredProficiency',
+          'importanceWeight',
+          'active',
+          'updatedAt'
+        ])
+        && isAdmin();
+
+      allow delete: if isVerifiedUser() && isValidId(reqId) && isAdmin();
+    }
+
+    // Collection 5: Private Student Resumes (/resumes/{resumeId}) - NEVER exposed to admins
+    match /resumes/{resumeId} {
+      allow get: if isSignedIn() && isValidId(resumeId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(resumeId)
+        && isValidResumeRecord(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && hasUserRecord(request.auth.uid);
+
+      allow update: if isVerifiedUser()
+        && isValidId(resumeId)
+        && isValidResumeRecord(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'fileName',
+          'mimeType',
+          'fileSizeBytes',
+          'storagePath',
+          'extractedText',
+          'extractedSkills',
+          'projects',
+          'certificates',
+          'experienceSummary',
+          'updatedAt'
+        ])
+        && hasUserRecord(request.auth.uid);
+
+      allow delete: if isVerifiedUser()
+        && isValidId(resumeId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    // Collection 6: Private Practical Assessments (/assessments/{assessmentId}) - NEVER exposed to admins
+    match /assessments/{assessmentId} {
+      allow get: if isSignedIn() && isValidId(assessmentId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(assessmentId)
+        && isValidAssessmentAttempt(incoming())
+        && incoming().createdAt == request.time
+        && hasUserRecord(request.auth.uid);
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Collection 7: Learning Resources (/learningResources/{resourceId})
+    match /learningResources/{resourceId} {
+      allow get: if isSignedIn() && isValidId(resourceId) && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(resourceId)
+        && isValidLearningResource(incoming(), resourceId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+
+      allow update: if isVerifiedUser()
+        && isValidId(resourceId)
+        && isValidLearningResource(incoming(), resourceId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title',
+          'description',
+          'skillCategory',
+          'skillTags',
+          'difficulty',
+          'url',
+          'source',
+          'estimatedHours',
+          'searchableContent',
+          'active',
+          'updatedAt'
+        ])
+        && isAdmin();
+
+      allow delete: if isVerifiedUser() && isValidId(resourceId) && isAdmin();
+    }
+
+    // Collection 8: Resource Chunks (/resourceChunks/{chunkId})
+    match /resourceChunks/{chunkId} {
+      allow get: if isSignedIn() && isValidId(chunkId) && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(chunkId)
+        && isValidResourceChunk(incoming(), chunkId)
+        && incoming().createdAt == request.time
+        && isAdmin()
+        && exists(/databases/$(database)/documents/learningResources/$(incoming().resourceId));
+
+      allow update: if isVerifiedUser()
+        && isValidId(chunkId)
+        && isValidResourceChunk(incoming(), chunkId)
+        && incoming().id == existing().id
+        && incoming().resourceId == existing().resourceId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'resourceTitle',
+          'skillCategory',
+          'difficulty',
+          'source',
+          'url',
+          'chunkIndex',
+          'chunkText',
+          'active'
+        ])
+        && isAdmin();
+
+      allow delete: if isVerifiedUser() && isValidId(chunkId) && isAdmin();
+    }
+
+    // Collection 9: Personalised Roadmaps (/roadmaps/{roadmapId})
+    match /roadmaps/{roadmapId} {
+      allow get: if isSignedIn() && isValidId(roadmapId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(roadmapId)
+        && isValidRoadmapDoc(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && hasUserRecord(request.auth.uid);
+
+      allow update: if isVerifiedUser()
+        && isValidId(roadmapId)
+        && isValidRoadmapDoc(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().roleId == existing().roleId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'roleTitle',
+          'weeklyStudyHours',
+          'preferredDurationWeeks',
+          'summary',
+          'insufficientEvidenceNote',
+          'tasks',
+          'sourceAttributions',
+          'generatedAtIso',
+          'updatedAt'
+        ])
+        && hasUserRecord(request.auth.uid);
+
+      allow delete: if isVerifiedUser()
+        && isValidId(roadmapId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    // Collection 10: Progress & Skill Match Snapshots (/progress/{progressId})
+    match /progress/{progressId} {
+      allow get: if isSignedIn() && isValidId(progressId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(progressId)
+        && isValidProgressSnapshot(incoming())
+        && incoming().createdAt == request.time
+        && hasUserRecord(request.auth.uid);
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Collection 11: System Activity Logs (/activityLogs/{logId})
+    match /activityLogs/{logId} {
+      allow get: if isVerifiedUser() && isValidId(logId) && isAdmin();
+      allow list: if isVerifiedUser() && (existing().actorUid == request.auth.uid || isAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(logId)
+        && isValidActivityLog(incoming())
+        && incoming().createdAt == request.time
+        && hasUserRecord(request.auth.uid);
+
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
